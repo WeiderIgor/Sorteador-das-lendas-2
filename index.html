@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sorteador de Lendas</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(to right, #0f172a, #1e293b);
+      color: white;
+      overflow-x: hidden;
+    }
+    .fade {
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .hidden-fade {
+      opacity: 0;
+      transform: translateX(100%);
+      pointer-events: none;
+      position: absolute;
+      width: 100%;
+    }
+    .visible {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+      position: relative;
+    }
+    @keyframes roulette {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .roulette {
+      animation: roulette 1s ease-in-out;
+    }
+    .highlight {
+      border: 3px solid #22c55e; /* verde */
+      border-radius: 8px;
+      padding: 10px;
+      position: relative;
+    }
+    .highlight-message {
+      position: absolute;
+      top: -25px;
+      left: 10px;
+      background-color: #22c55e;
+      color: black;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4" onload="setup()">
+  <audio id="bgMusic" src="sounds/musica-epica.mp3" loop autoplay></audio>
+
+  <!-- Página 1: Seleção de Modo -->
+  <div id="page1" class="fade visible text-center">
+    <h1 class="text-4xl font-bold mb-4">⚔️ Sorteador de Lendas ⚔️</h1>
+    <div class="mb-4">
+      <label class="inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="vilsonCheckbox" class="form-checkbox text-green-500 h-5 w-5" />
+        <span class="ml-2 text-white text-lg select-none">Incluir Vilson na batalha</span>
+      </label>
+    </div>
+    <p class="text-lg mb-4">Escolha o modo de batalha:</p>
+    <div class="grid grid-cols-2 gap-4">
+      <button onclick="playSelectSound(); nextPage(2,2)" class="bg-blue-500 hover:bg-blue-700 text-white py-2 px-4 rounded">2x2</button>
+      <button onclick="playSelectSound(); nextPage(2,3)" class="bg-green-500 hover:bg-green-700 text-white py-2 px-4 rounded">3x3</button>
+      <button onclick="playSelectSound(); nextPage(2,4)" class="bg-yellow-500 hover:bg-yellow-700 text-white py-2 px-4 rounded">4x4</button>
+      <button onclick="playSelectSound(); nextPage(2,5)" class="bg-red-500 hover:bg-red-700 text-white py-2 px-4 rounded">5x5</button>
+    </div>
+  </div>
+
+  <!-- Página 2: Digitação dos Nomes -->
+  <div id="page2" class="fade hidden-fade text-center w-full max-w-md">
+    <h2 class="text-2xl font-semibold mb-4">📝 Digite os nomes das lendas:</h2>
+    <div id="nameInputs" class="flex flex-col gap-2"></div>
+    <div class="mt-4 flex flex-col gap-2">
+      <button onclick="playSelectSound(); nextPage(3)" class="bg-purple-600 hover:bg-purple-800 text-white py-2 px-4 rounded">SORTEAR ⚔️</button>
+      <button onclick="playSelectSound(); nextPage(1)" class="bg-gray-600 hover:bg-gray-800 text-white py-2 px-4 rounded">🔙 Voltar</button>
+    </div>
+  </div>
+
+  <!-- Página 3: Sorteando -->
+  <div id="page3" class="fade hidden-fade text-center">
+    <h2 class="text-2xl text-white font-semibold mb-4">🎰 Sorteando as lendas...</h2>
+    <div class="text-4xl font-bold animate-bounce mb-6" id="roulette">🎯</div>
+  </div>
+
+  <!-- Página 4: Resultado -->
+  <div id="page4" class="fade hidden-fade text-center w-full max-w-xl">
+    <h2 class="text-2xl font-bold mb-4">🎉 Grupos Sorteados:</h2>
+    <div id="groupsOutput" class="grid grid-cols-1 gap-4 mb-4"></div>
+    <div class="flex justify-center gap-4">
+      <button onclick="playSelectSound(); reshuffle()" class="bg-indigo-600 hover:bg-indigo-800 text-white py-2 px-4 rounded">🔁 Sortear novamente</button>
+      <button onclick="playSelectSound(); nextPage(1)" class="bg-gray-600 hover:bg-gray-800 text-white py-2 px-4 rounded">✏️ Inserir novos nomes</button>
+    </div>
+  </div>
+
+  <script>
+    let teamSize = 0;
+    let lastNames = [];
+
+    const selectSound = new Howl({
+      src: ['https://www.myinstants.com/media/sounds/fart-with-reverb.mp3'],
+      volume: 1.0
+    });
+
+    function playSelectSound() {
+      selectSound.play();
+    }
+
+    function setup() {
+      document.getElementById('bgMusic').play().catch(() => {
+        document.body.addEventListener('click', () => {
+          document.getElementById('bgMusic').play();
+        }, { once: true });
+      });
+    }
+
+    function nextPage(page, size = null) {
+      document.querySelectorAll('.fade').forEach(el => {
+        el.classList.add('hidden-fade');
+        el.classList.remove('visible');
+      });
+      document.getElementById(`page${page}`).classList.remove('hidden-fade');
+      document.getElementById(`page${page}`).classList.add('visible');
+
+      if (page === 2 && size) {
+        teamSize = size;
+        const totalPlayers = size * 2;
+        const nameInputs = document.getElementById('nameInputs');
+        nameInputs.innerHTML = '';
+        for (let i = 1; i <= totalPlayers; i++) {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = `Lenda ${i}`;
+          input.className = 'p-2 rounded bg-gray-800 text-white';
+          nameInputs.appendChild(input);
+        }
+      }
+
+      if (page === 3) {
+        document.getElementById('roulette').classList.add('roulette');
+        setTimeout(() => startBattle(), 2000);
+      }
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function startBattle() {
+      const inputs = document.querySelectorAll('#nameInputs input');
+      let names = Array.from(inputs).map(input => input.value.trim()).filter(n => n);
+
+      // Verifica se a checkbox de Vilson está marcada e adiciona Vilson se não tiver na lista
+      const vilsonChecked = document.getElementById('vilsonCheckbox').checked;
+      if (vilsonChecked && !names.includes('Vilson')) {
+        if (names.length < teamSize * 2) {
+          names.push('Vilson');
+        } else {
+          alert('A lista já está cheia para o modo selecionado, remova um nome para adicionar Vilson.');
+          nextPage(2, teamSize);
+          return;
+        }
+      }
+
+      if (names.length === 0 && lastNames.length > 0) {
+        names = [...lastNames];
+      }
+
+      if (names.length !== teamSize * 2) {
+        alert(`Você precisa inserir exatamente ${teamSize * 2} nomes!`);
+        nextPage(2, teamSize);
+        return;
+      }
+
+      lastNames = [...names];
+      const shuffled = shuffle(names);
+      const group1 = shuffled.slice(0, teamSize);
+      const group2 = shuffled.slice(teamSize);
+
+      // Monta o html com destaque para o grupo que tem Vilson, se houver
+      const group1HasVilson = vilsonChecked && group1.includes('Vilson');
+      const group2HasVilson = vilsonChecked && group2.includes('Vilson');
+
+      const highlightDiv = (hasVilson) => hasVilson
+        ? `<div class="highlight-message">✅ Este time pode escolher o champ!</div>`
+        : '';
+
+      document.getElementById('groupsOutput').innerHTML = `
+        <div class="bg-gray-800 p-4 rounded shadow relative ${group1HasVilson ? 'highlight' : ''}">
+          <h3 class="text-xl font-semibold mb-2">Grupo 1 🔥</h3>
+          <p>${group1.join(', ')}</p>
+          ${highlightDiv(group1HasVilson)}
+        </div>
+        <div class="bg-gray-800 p-4 rounded shadow relative ${group2HasVilson ? 'highlight' : ''}">
+          <h3 class="text-xl font-semibold mb-2">Grupo 2 ❄️</h3>
+          <p>${group2.join(', ')}</p>
+          ${highlightDiv(group2HasVilson)}
+        </div>
+      `;
+
+      nextPage(4);
+    }
+
+    function reshuffle() {
+      nextPage(3);
+    }
+  </script>
+</body>
+</html>
