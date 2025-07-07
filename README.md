@@ -1,1 +1,0 @@
-# Sorteador-das-lendas-2
